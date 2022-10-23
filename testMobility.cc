@@ -5,13 +5,7 @@
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
-
-// Default Network Topology
-//
-//       10.1.1.0
-// n0 -------------- n1
-//    point-to-point
-//
+#include "ns3/mobility-module.h"
  
 using namespace ns3;
 
@@ -41,6 +35,21 @@ main (int argc, char *argv[])
   NetDeviceContainer devicesA, devicesB;
   devicesA = pointToPoint.Install (connectionA);
   devicesB = pointToPoint.Install (connectionB);
+
+  // Movement
+  MobilityHelper mobility;
+
+  mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
+                                 "MinX", DoubleValue (0.0),
+                                 "MinY", DoubleValue (0.0),
+                                 "DeltaX", DoubleValue (5.0),
+                                 "DeltaY", DoubleValue (10.0),
+                                 "GridWidth", UintegerValue (3),
+                                 "LayoutType", StringValue ("RowFirst"));
+
+  mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
+                             "Bounds", RectangleValue (Rectangle (-50, 50, -50, 50)));
+  mobility.Install (connectionA);
 
   InternetStackHelper stack;
   stack.Install (connectionA.Get (0));
