@@ -19,6 +19,7 @@
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/netanim-module.h"
 
 // Default Network Topology
 //
@@ -73,6 +74,10 @@ main (int argc, char *argv[])
   ApplicationContainer clientApps = echoClient.Install (nodes.Get (0));
   clientApps.Start (Seconds (2.0));
   clientApps.Stop (Seconds (10.0));
+
+  AnimationInterface anim("testFirst.xml");
+  anim.SetConstantPosition(nodes.Get(0), 30.0, 10.0 );
+  anim.SetConstantPosition(nodes.Get(1), 30.0, 20.0 );
 
   Simulator::Run ();
   Simulator::Destroy ();

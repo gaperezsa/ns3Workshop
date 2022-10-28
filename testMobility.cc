@@ -21,20 +21,20 @@ main (int argc, char *argv[])
   LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_INFO);
   LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
 
-  NodeContainer connectionA;
-  connectionA.Create (2);
+  NodeContainer poolA;
+  poolA.Create (2);
 
-  NodeContainer connectionB;
-  connectionB.Add (connectionA.Get (1));
-  connectionB.Create (1);
+  NodeContainer poolB;
+  poolB.Add (poolA.Get (1));
+  poolB.Create (1);
 
   PointToPointHelper pointToPoint;
   pointToPoint.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
   pointToPoint.SetChannelAttribute ("Delay", StringValue ("2ms"));
 
   NetDeviceContainer devicesA, devicesB;
-  devicesA = pointToPoint.Install (connectionA);
-  devicesB = pointToPoint.Install (connectionB);
+  devicesA = pointToPoint.Install (poolA);
+  devicesB = pointToPoint.Install (poolB);
 
   // Movement
   MobilityHelper mobility;
@@ -49,11 +49,11 @@ main (int argc, char *argv[])
 
   mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
                              "Bounds", RectangleValue (Rectangle (-50, 50, -50, 50)));
-  mobility.Install (connectionA);
+  mobility.Install (poolA);
 
   InternetStackHelper stack;
-  stack.Install (connectionA.Get (0));
-  stack.Install (connectionB);
+  stack.Install (poolA.Get (0));
+  stack.Install (poolB);
 
   Ipv4AddressHelper address;
   address.SetBase ("10.1.1.0", "255.255.255.0");
@@ -66,7 +66,7 @@ main (int argc, char *argv[])
 
   UdpEchoServerHelper echoServer (9);
 
-  ApplicationContainer serverApps = echoServer.Install (connectionB.Get (1));
+  ApplicationContainer serverApps = echoServer.Install (poolB.Get (1));
   serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (10.0));
 
@@ -75,7 +75,7 @@ main (int argc, char *argv[])
   echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
   echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
 
-  ApplicationContainer clientApps = echoClient.Install (connectionA.Get (0));
+  ApplicationContainer clientApps = echoClient.Install (poolA.Get (0));
   clientApps.Start (Seconds (2.0));
   clientApps.Stop (Seconds (10.0));
 
