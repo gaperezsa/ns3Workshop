@@ -15,6 +15,9 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("FirstScriptExample");
 
+const int nodesPerCluster = 3;
+const int maxClusters = 3;
+
 std::string intToString(int num){
     std::string retString = "";
     do{
@@ -41,9 +44,6 @@ int main (int argc, char *argv[])
     LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
 
     // Create clusters and cluster heads
-
-    const int nodesPerCluster = 3;
-    const int maxClusters = 3;
 
     std::vector<NodeContainer> clusters, clusterHeads;
     for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
@@ -78,29 +78,6 @@ int main (int argc, char *argv[])
                 pairwiseConnectionDevices.push_back(currentDevices);
             }
         }
-    }
-
-    // Install InternetStackHelper in each node
-
-    InternetStackHelper stack;
-    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
-        stack.Install (clusters[cluster]);
-    }
-
-    // Set up the Ipv4AddressHelper for each pairwise subnet
-
-    std::vector <Ipv4InterfaceContainer> pairwiseConnectionInterfaces;
-    Ipv4AddressHelper address;
-    int currentSubnet = 1;
-    std::string mask = "255.255.255.0";
-    for(int device = 0 ; device < (int)pairwiseConnectionDevices.size() ; device ++){
-        std::string baseIP = getBaseIP(currentSubnet);
-        address.SetBase (baseIP.c_str(), mask.c_str());
-        currentSubnet ++;
-
-        Ipv4InterfaceContainer interface;
-        interface = address.Assign (pairwiseConnectionDevices[device]);
-        pairwiseConnectionInterfaces.push_back(interface);
     }
 
     // Set up inter-cluster connections
@@ -144,6 +121,63 @@ int main (int argc, char *argv[])
         intoClusterHeadDevices.push_back(currentClusterHeadDevices);
     }
 
+     // Animation parameters
+
+    double leftmost_cluster = 10.0;
+    double cluster_x_delta = 30.0;
+    double cluster_head_y = 10.0;
+    double cluster_y = 60.0;
+
+    // Movement
+    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
+        MobilityHelper currentMobility;
+        currentMobility.SetPositionAllocator ("ns3::GridPositionAllocator",
+                                                "MinX", DoubleValue (leftmost_cluster + cluster*cluster_x_delta),
+                                                "MinY", DoubleValue (cluster_y),
+                                                "DeltaX", DoubleValue (10.0),
+                                                "DeltaY", DoubleValue (30.0),
+                                                "GridWidth", UintegerValue (3),
+                                                "LayoutType", StringValue ("RowFirst"));
+
+        currentMobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
+                                    "Bounds", RectangleValue (
+                                        Rectangle ( leftmost_cluster + cluster*cluster_x_delta,
+                                                    leftmost_cluster + (cluster+1.0)*cluster_x_delta,
+                                                    -100,
+                                                    100 )));
+        currentMobility.Install (clusters[cluster]);
+    }
+    
+
+    AnimationInterface anim("testCluster.xml");
+    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
+        anim.SetConstantPosition(clusterHeads[cluster].Get(0),
+            leftmost_cluster+cluster*30.0, (cluster%2 == 0) ? cluster_head_y : cluster_head_y*1.5 );
+    }
+
+    // Install InternetStackHelper in each node
+
+    InternetStackHelper stack;
+    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
+        stack.Install (clusters[cluster]);
+    }
+
+    // Set up the Ipv4AddressHelper for each pairwise subnet
+
+    std::vector <Ipv4InterfaceContainer> pairwiseConnectionInterfaces;
+    Ipv4AddressHelper address;
+    int currentSubnet = 1;
+    std::string mask = "255.255.255.0";
+    for(int device = 0 ; device < (int)pairwiseConnectionDevices.size() ; device ++){
+        std::string baseIP = getBaseIP(currentSubnet);
+        address.SetBase (baseIP.c_str(), mask.c_str());
+        currentSubnet ++;
+
+        Ipv4InterfaceContainer interface;
+        interface = address.Assign (pairwiseConnectionDevices[device]);
+        pairwiseConnectionInterfaces.push_back(interface);
+    }
+
     // Install InternetStackHelper in each cluster head
 
     for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
@@ -179,63 +213,37 @@ int main (int argc, char *argv[])
         intoClusterHeadInterfaces.push_back(currentClusterHeadInterfaces);
     }
 
+    // Program calls
+
     UdpEchoServerHelper echoServer (9);
 
-    ApplicationContainer serverApps = echoServer.Install (clusters[0].Get (0));
-    serverApps.Start (Seconds (1.0));
-    serverApps.Stop (Seconds (10.0));
+    for( int mainClusterNode = 0 ; mainClusterNode < nodesPerCluster ; mainClusterNode ++ ){
+        ApplicationContainer serverApps = echoServer.Install (clusters[0].Get (mainClusterNode));
+        serverApps.Start (Seconds (0.0));
+        serverApps.Stop (Seconds (30.0));
+    }
 
-    UdpEchoClientHelper echoClient (intoClusterHeadInterfaces[0][0].GetAddress (0), 9);
-    echoClient.SetAttribute ("MaxPackets", UintegerValue (3));
-    echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
-    echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
+    std::vector <UdpEchoClientHelper> echoClients;
+    for(int clientApp = 0 ; clientApp < nodesPerCluster ; clientApp ++){
+        UdpEchoClientHelper echoClient (intoClusterHeadInterfaces[0][clientApp].GetAddress (0), 9);
+        echoClient.SetAttribute ("MaxPackets", UintegerValue (5));
+        echoClient.SetAttribute ("Interval", TimeValue (Seconds (2.0)));
+        echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
+        echoClients.push_back(echoClient);
+    }
 
-    ApplicationContainer clientApps = echoClient.Install (clusters[2].Get (0));
-    clientApps.Start (Seconds (2.0));
-    clientApps.Stop (Seconds (10.0));
-
-    ApplicationContainer clientApps2 = echoClient.Install (clusters[2].Get (2));
-    clientApps2.Start (Seconds (3.0));
-    clientApps2.Stop (Seconds (10.0));
+    for(int cluster = 1 ; cluster < maxClusters ; cluster ++){
+        for(int node = 0 ; node < nodesPerCluster ; node ++){
+            UdpEchoClientHelper echoClient = echoClients[node];
+            ApplicationContainer clientApps = echoClient.Install (clusters[cluster].Get (node));
+            clientApps.Start (Seconds (1.0*node));
+            clientApps.Stop (Seconds (30.0));
+        }
+    }
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
-    // Animation parameters
-
-    double leftmost_cluster = 10.0;
-    double cluster_x_delta = 30.0;
-    double cluster_head_y = 10.0;
-    double cluster_y = 60.0;
-
-    // Movement
-    std::vector<MobilityHelper> mobilities;
-    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
-        MobilityHelper currentMobility;
-        currentMobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-                                                "MinX", DoubleValue (leftmost_cluster + cluster*cluster_x_delta),
-                                                "MinY", DoubleValue (cluster_y),
-                                                "DeltaX", DoubleValue (10.0),
-                                                "DeltaY", DoubleValue (30.0),
-                                                "GridWidth", UintegerValue (3),
-                                                "LayoutType", StringValue ("RowFirst"));
-
-        currentMobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
-                                    "Bounds", RectangleValue (
-                                        Rectangle ( leftmost_cluster + cluster*cluster_x_delta,
-                                                    leftmost_cluster + (cluster+1.0)*cluster_x_delta,
-                                                    -100,
-                                                    100 )));
-        currentMobility.Install (clusters[cluster]);
-    }
-    
-
-    AnimationInterface anim("testCluster.xml");
-    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
-        anim.SetConstantPosition(clusterHeads[cluster].Get(0),
-            leftmost_cluster+cluster*30.0, (cluster%2 == 0) ? cluster_head_y : cluster_head_y*1.5 );
-    }
-
-    Simulator::Stop (Seconds (10.0));
+    Simulator::Stop (Seconds (30.0));
 
     Simulator::Run ();
     Simulator::Destroy ();
