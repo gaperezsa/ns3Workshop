@@ -186,7 +186,7 @@ int main (int argc, char *argv[])
     serverApps.Stop (Seconds (10.0));
 
     UdpEchoClientHelper echoClient (intoClusterHeadInterfaces[0][0].GetAddress (0), 9);
-    echoClient.SetAttribute ("MaxPackets", UintegerValue (3));
+    echoClient.SetAttribute ("MaxPackets", UintegerValue (1));
     echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
     echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
 
@@ -194,48 +194,18 @@ int main (int argc, char *argv[])
     clientApps.Start (Seconds (2.0));
     clientApps.Stop (Seconds (10.0));
 
-    ApplicationContainer clientApps2 = echoClient.Install (clusters[2].Get (2));
-    clientApps2.Start (Seconds (3.0));
-    clientApps2.Stop (Seconds (10.0));
-
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-
-    // Animation parameters
-
-    double leftmost_cluster = 10.0;
-    double cluster_x_delta = 30.0;
-    double cluster_head_y = 10.0;
-    double cluster_y = 60.0;
-
-    // Movement
-    std::vector<MobilityHelper> mobilities;
-    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
-        MobilityHelper currentMobility;
-        currentMobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-                                                "MinX", DoubleValue (leftmost_cluster + cluster*cluster_x_delta),
-                                                "MinY", DoubleValue (cluster_y),
-                                                "DeltaX", DoubleValue (10.0),
-                                                "DeltaY", DoubleValue (30.0),
-                                                "GridWidth", UintegerValue (3),
-                                                "LayoutType", StringValue ("RowFirst"));
-
-        currentMobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
-                                    "Bounds", RectangleValue (
-                                        Rectangle ( leftmost_cluster + cluster*cluster_x_delta,
-                                                    leftmost_cluster + (cluster+1.0)*cluster_x_delta,
-                                                    -100,
-                                                    100 )));
-        currentMobility.Install (clusters[cluster]);
-    }
-    
 
     AnimationInterface anim("testCluster.xml");
     for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
-        anim.SetConstantPosition(clusterHeads[cluster].Get(0),
-            leftmost_cluster+cluster*30.0, (cluster%2 == 0) ? cluster_head_y : cluster_head_y*1.5 );
+        anim.SetConstantPosition(clusterHeads[cluster].Get(0), 10.0+cluster*30.0, (cluster == 1) ? 5.0 : 10.0 );
     }
 
-    Simulator::Stop (Seconds (10.0));
+    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
+        for(int node = 0 ; node < (int)clusters[cluster].GetN() ; node ++){
+            anim.SetConstantPosition(clusters[cluster].Get(node), 10.0 + (double)cluster*30.0 + 4.0*(double)node, 20.0 );
+        }
+    }
 
     Simulator::Run ();
     Simulator::Destroy ();
