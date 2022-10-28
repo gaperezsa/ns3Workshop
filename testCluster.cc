@@ -9,6 +9,7 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/mobility-module.h"
+#include "ns3/netanim-module.h"
  
 using namespace ns3;
 
@@ -194,6 +195,17 @@ int main (int argc, char *argv[])
     clientApps.Stop (Seconds (10.0));
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
+    AnimationInterface anim("testCluster.xml");
+    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
+        anim.SetConstantPosition(clusterHeads[cluster].Get(0), 10.0+cluster*30.0, (cluster == 1) ? 5.0 : 10.0 );
+    }
+
+    for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
+        for(int node = 0 ; node < (int)clusters[cluster].GetN() ; node ++){
+            anim.SetConstantPosition(clusters[cluster].Get(node), 10.0 + (double)cluster*30.0 + 4.0*(double)node, 20.0 );
+        }
+    }
 
     Simulator::Run ();
     Simulator::Destroy ();
