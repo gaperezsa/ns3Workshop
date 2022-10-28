@@ -6,6 +6,7 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/mobility-module.h"
+#include "ns3/netanim-module.h"
  
 using namespace ns3;
 
@@ -40,8 +41,8 @@ main (int argc, char *argv[])
   MobilityHelper mobility;
 
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-                                 "MinX", DoubleValue (0.0),
-                                 "MinY", DoubleValue (0.0),
+                                 "MinX", DoubleValue (20.0),
+                                 "MinY", DoubleValue (20.0),
                                  "DeltaX", DoubleValue (5.0),
                                  "DeltaY", DoubleValue (10.0),
                                  "GridWidth", UintegerValue (3),
@@ -80,6 +81,11 @@ main (int argc, char *argv[])
   clientApps.Stop (Seconds (10.0));
 
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
+  AnimationInterface anim("testMobility.xml");
+  anim.SetConstantPosition(poolB.Get(1), 10.0, 10.0 );
+
+  Simulator::Stop (Seconds (10.0));
 
   Simulator::Run ();
   Simulator::Destroy ();

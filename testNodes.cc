@@ -1,10 +1,13 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 
+#include <string>
+#include <iostream>
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/netanim-module.h"
 
 // Default Network Topology
 //
@@ -14,6 +17,22 @@
 //
  
 using namespace ns3;
+
+std::string intToString(int num){
+    std::string retString = "";
+    do{
+        char digit = '0'+(num%10);
+        retString.push_back(digit);
+        num /= 10;
+    }while( num > 0 );
+    reverse(retString.begin(),retString.end());
+    return retString;
+}
+
+std::string getBaseIP(int clusterId){
+    std::string baseAddress = "10.0." + intToString(clusterId) + ".0";
+    return baseAddress;
+}
 
 NS_LOG_COMPONENT_DEFINE ("FirstScriptExample");
 
@@ -71,6 +90,11 @@ main (int argc, char *argv[])
   clientApps.Stop (Seconds (10.0));
 
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
+  AnimationInterface anim("testNodes.xml");
+  anim.SetConstantPosition(connectionA.Get(0), 10.0, 10.0 );
+  anim.SetConstantPosition(connectionA.Get(1), 20.0, 20.0 );
+  anim.SetConstantPosition(connectionB.Get(1), 30.0, 30.0 );
 
   Simulator::Run ();
   Simulator::Destroy ();
