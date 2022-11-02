@@ -12,7 +12,6 @@
 #include "ns3/netanim-module.h"
  
 using namespace ns3;
-
 NS_LOG_COMPONENT_DEFINE ("FirstScriptExample");
 
 const int nodesPerCluster = 3;
@@ -34,18 +33,17 @@ std::string getBaseIP(int clusterId){
     return baseAddress;
 }
 
-int main (int argc, char *argv[])
-{
-    CommandLine cmd (__FILE__);
-    cmd.Parse (argc, argv);
-    
-    Time::SetResolution (Time::NS);
-    LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_INFO);
-    LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
+std::vector<NodeContainer> clusters, clusterHeads;
+std::vector <NetDeviceContainer> pairwiseConnectionDevices;
+std::vector <NetDeviceContainer> clusterConnectionDevices;
+std::vector < std::vector<NetDeviceContainer> > intoClusterHeadDevices;
+std::vector <Ipv4InterfaceContainer> pairwiseConnectionInterfaces;
+std::vector <Ipv4InterfaceContainer> connectionInterfaces;
+std::vector < std::vector <Ipv4InterfaceContainer> > intoClusterHeadInterfaces;
 
+void initialize(){
     // Create clusters and cluster heads
 
-    std::vector<NodeContainer> clusters, clusterHeads;
     for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
         NodeContainer currentCluster;
         currentCluster.Create (nodesPerCluster);
@@ -61,8 +59,6 @@ int main (int argc, char *argv[])
     PointToPointHelper pointToPointInCluster;
     pointToPointInCluster.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
     pointToPointInCluster.SetChannelAttribute ("Delay", StringValue ("2ms"));
-
-    std::vector <NetDeviceContainer> pairwiseConnectionDevices;
 
     for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
         for(int node_origin = 0 ; node_origin < (int)clusters[cluster].GetN() ; node_origin ++){
@@ -86,8 +82,6 @@ int main (int argc, char *argv[])
     pointToPointBetweenClusters.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
     pointToPointBetweenClusters.SetChannelAttribute ("Delay", StringValue ("2ms"));
 
-    std::vector <NetDeviceContainer> clusterConnectionDevices;
-
     // Set up the connections between cluster heads
     for(int cluster_origin = 0 ; cluster_origin < maxClusters ; cluster_origin ++){
         for(int cluster_destination = cluster_origin+1 ; cluster_destination < maxClusters ; cluster_destination ++){
@@ -104,7 +98,6 @@ int main (int argc, char *argv[])
     }
 
     // Set up the connection of each node to its cluster head
-    std::vector < std::vector<NetDeviceContainer> > intoClusterHeadDevices;
     for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
         std::vector<NetDeviceContainer> currentClusterHeadDevices;
         for(int node = 0 ; node < (int)clusters[cluster].GetN() ; node ++){
@@ -164,7 +157,6 @@ int main (int argc, char *argv[])
 
     // Set up the Ipv4AddressHelper for each pairwise subnet
 
-    std::vector <Ipv4InterfaceContainer> pairwiseConnectionInterfaces;
     Ipv4AddressHelper address;
     int currentSubnet = 1;
     std::string mask = "255.255.255.0";
@@ -186,7 +178,6 @@ int main (int argc, char *argv[])
 
     // Set up the Ipv4AddressHelper for each inter-cluster subnet
 
-    std::vector <Ipv4InterfaceContainer> connectionInterfaces;
     for(int device = 0 ; device < (int)clusterConnectionDevices.size() ; device ++){
         std::string baseIP = getBaseIP(currentSubnet);
         address.SetBase (baseIP.c_str(), mask.c_str());
@@ -198,7 +189,6 @@ int main (int argc, char *argv[])
     }
 
     // Set up and store the Ipv4AddressHelper for each subnet between nodes and their cluster head
-    std::vector < std::vector <Ipv4InterfaceContainer> > intoClusterHeadInterfaces;
     for(int cluster = 0 ; cluster < (int)intoClusterHeadDevices.size() ; cluster ++){
         std::vector <Ipv4InterfaceContainer> currentClusterHeadInterfaces;
         for(int device = 0 ; device < (int)intoClusterHeadDevices[cluster].size() ; device ++){
@@ -212,7 +202,9 @@ int main (int argc, char *argv[])
         }
         intoClusterHeadInterfaces.push_back(currentClusterHeadInterfaces);
     }
+}
 
+void configureEvents(){
     // Program calls
 
     UdpEchoServerHelper echoServer (9);
@@ -242,10 +234,26 @@ int main (int argc, char *argv[])
     }
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+}
 
+void timeAndSpace(){
     Simulator::Stop (Seconds (30.0));
+}
 
+int main (int argc, char *argv[])
+{
+    CommandLine cmd (__FILE__);
+    cmd.Parse (argc, argv);
+    
+    Time::SetResolution (Time::NS);
+    LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_INFO);
+    LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
+
+    initialize();
+    configureEvents();
+    timeAndSpace();
     Simulator::Run ();
     Simulator::Destroy ();
+
     return 0;
 }

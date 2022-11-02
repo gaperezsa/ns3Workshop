@@ -149,7 +149,7 @@ int main (int argc, char *argv[])
     }
     
 
-    AnimationInterface anim("testCluster.xml");
+    AnimationInterface anim("manetSimulator.xml");
     for(int cluster = 0 ; cluster < maxClusters ; cluster ++){
         anim.SetConstantPosition(clusterHeads[cluster].Get(0),
             leftmost_cluster+cluster*30.0, (cluster%2 == 0) ? cluster_head_y : cluster_head_y*1.5 );
@@ -226,19 +226,26 @@ int main (int argc, char *argv[])
     std::vector <UdpEchoClientHelper> echoClients;
     for(int clientApp = 0 ; clientApp < nodesPerCluster ; clientApp ++){
         UdpEchoClientHelper echoClient (intoClusterHeadInterfaces[0][clientApp].GetAddress (0), 9);
-        echoClient.SetAttribute ("MaxPackets", UintegerValue (10));
-        echoClient.SetAttribute ("Interval", TimeValue (Seconds (2.0)));
+        echoClient.SetAttribute ("MaxPackets", UintegerValue (15));
+        echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
         echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
         echoClients.push_back(echoClient);
     }
 
-    for(int cluster = 1 ; cluster < maxClusters ; cluster ++){
-        for(int node = 0 ; node < nodesPerCluster ; node ++){
-            UdpEchoClientHelper echoClient = echoClients[(cluster+node)%nodesPerCluster];
-            ApplicationContainer clientApps = echoClient.Install (clusters[cluster].Get (node));
-            clientApps.Start (Seconds (1.0*node));
-            clientApps.Stop (Seconds (30.0));
-        }
+    // Set up calls from cluster 1
+    for(int node = 0 ; node < nodesPerCluster ; node ++){
+        UdpEchoClientHelper echoClient = echoClients[(node)%nodesPerCluster];
+        ApplicationContainer clientApps = echoClient.Install (clusters[1].Get (node));
+        clientApps.Start (Seconds (5.0));
+        clientApps.Stop (Seconds (20.0));
+    }
+
+    // Set up calls from cluster 2
+    for(int node = 0 ; node < nodesPerCluster ; node ++){
+        UdpEchoClientHelper echoClient = echoClients[(node)%nodesPerCluster];
+        ApplicationContainer clientApps = echoClient.Install (clusters[2].Get (node));
+        clientApps.Start (Seconds (10.0));
+        clientApps.Stop (Seconds (25.0));
     }
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
