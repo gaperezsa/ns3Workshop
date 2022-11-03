@@ -1,5 +1,5 @@
 #!/bin/bash
 filename=$1
-cp $filename.cc ../../libs/ns-3-dev/scratch/$filename.cc
-../../libs/ns-3-dev/ns3 build
-../../libs/ns-3-dev/ns3 run scratch/$filename
+cp $filename.cc ../ns-allinone-3.36.1/ns-3.36.1/scratch/$filename.cc
+../ns-allinone-3.36.1/ns-3.36.1/ns3 build
+../ns-allinone-3.36.1/ns-3.36.1/ns3 run scratch/$filename
