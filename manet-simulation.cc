@@ -67,6 +67,8 @@
 
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <string>
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
@@ -81,6 +83,7 @@
 #include "ns3/core-module.h"
 #include "ns3/netanim-module.h"
 #include "ns3/opengym-module.h"
+#include "ns3/flow-monitor-module.h"
 #include <cstdio>
 
 
@@ -92,6 +95,8 @@ NS_LOG_COMPONENT_DEFINE ("manet-routing-compare");
 
 uint32_t global_PacketsReceived;
 uint32_t global_PacketsSent;
+multimap<uint32_t, Time> SendingTimes;
+multimap<uint32_t, Time> ReceivingTimes;
 float distance_change = 1.5; 
 
 class RoutingExperiment
@@ -100,11 +105,14 @@ public:
   RoutingExperiment ();
   void Run (int nSinks, double txp, std::string CSVfileName);
   std::string CommandSetup (int argc, char **argv);
+  
 
 
 private:
-  Ptr<Socket> SetupPacketReceive (Ipv4Address addr, Ptr<Node> node);
+  Ptr<Socket> SetupPacketReceive (Ipv4Address addr, Ptr<Node> node, uint32_t checkPort);
+  Ptr<Socket> SetupPacketSend(Ipv4Address addr, Ptr<Node> node, uint32_t checkPort);
   void ReceivePacket (Ptr<Socket> socket);
+  void SendPacket (Ptr<Socket> socket, uint32_t bytes);
   void CheckThroughput ();
   
 
@@ -234,36 +242,44 @@ PrintReceivedPacket (Ptr<Socket> socket, Ptr<Packet> packet, Address senderAddre
 
 void RoutingExperiment::ReceivePacket (Ptr<Socket> socket)
 { 
-  NS_LOG_UNCOND ("AAAAAAAAAAAAAAAAAAAAAAAA funciono wey ");
-  Ptr<Packet> packet;
-  Address senderAddress;
-  while ((packet = socket->RecvFrom (senderAddress)))
-    {
-      bytesTotal += packet->GetSize ();
-      packetsReceived += 1;
-      global_PacketsReceived+=1;
-      NS_LOG_UNCOND (PrintReceivedPacket (socket, packet, senderAddress));
-    }
+  ReceivingTimes.insert(pair<uint32_t,Time>(socket->GetNode()->GetId() , Simulator::Now ()));
+  NS_LOG_UNCOND ("node: "+ std::to_string(socket->GetNode()->GetId())+" received back a packet at "+std::to_string(Simulator::Now().GetSeconds())+ " seconds BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+}
+
+void RoutingExperiment::SendPacket (Ptr<Socket> socket, uint32_t bytes)
+{ 
+  SendingTimes.insert(pair<uint32_t,Time>(socket->GetNode()->GetId(), Simulator::Now ()));
+  NS_LOG_UNCOND ("node: "+ std::to_string(socket->GetNode()->GetId())+" sent a packet at "+std::to_string(Simulator::Now().GetSeconds())+ " seconds AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 }
 
 void
 RoutingExperiment::CheckThroughput ()
 {
-  double kbs = (bytesTotal * 8.0) / 1000;
-  bytesTotal = 0;
+  NS_LOG_UNCOND ("Checking sending and receiving timessss \n");
 
-  std::ofstream out (m_CSVfileName.c_str (), std::ios::app);
+  for ( const auto &p : SendingTimes )
+  {
+    NS_LOG_UNCOND("SendingTimes: " << p.first << '\t' << p.second<<'\n');
+  }
+  for ( const auto &p : ReceivingTimes )
+  {
+    NS_LOG_UNCOND("ReceivingTimes: " << p.first << '\t' << p.second<<'\n');
+  }
+  // double kbs = (bytesTotal * 8.0) / 1000;
+  // bytesTotal = 0;
 
-  out << (Simulator::Now ()).GetSeconds () << ","
-      << kbs << ","
-      << packetsReceived << ","
-      << m_nSinks << ","
-      << m_protocolName << ","
-      << m_txp << ""
-      << std::endl;
+  // std::ofstream out (m_CSVfileName.c_str (), std::ios::app);
 
-  out.close ();
-  packetsReceived = 0;
+  // out << (Simulator::Now ()).GetSeconds () << ","
+  //     << kbs << ","
+  //     << packetsReceived << ","
+  //     << m_nSinks << ","
+  //     << m_protocolName << ","
+  //     << m_txp << ""
+  //     << std::endl;
+
+  // out.close ();
+  // packetsReceived = 0;
   Simulator::Schedule (Seconds (1.0), &RoutingExperiment::CheckThroughput, this);
 }
 
@@ -325,14 +341,25 @@ std::string getBaseIP(int clusterId){
 }
 
 Ptr<Socket>
-RoutingExperiment::SetupPacketReceive (Ipv4Address addr, Ptr<Node> node)
+RoutingExperiment::SetupPacketReceive(Ipv4Address addr, Ptr<Node> node, uint32_t checkPort)
 {
-  global_PacketsSent++;
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
   Ptr<Socket> sink = Socket::CreateSocket (node, tid);
-  InetSocketAddress local = InetSocketAddress (addr, port);
+  InetSocketAddress local = InetSocketAddress (addr, checkPort);
   sink->Bind (local);
   sink->SetRecvCallback (MakeCallback (&RoutingExperiment::ReceivePacket, this));
+
+  return sink;
+}
+
+Ptr<Socket>
+RoutingExperiment::SetupPacketSend(Ipv4Address addr, Ptr<Node> node, uint32_t checkPort)
+{
+  TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+  Ptr<Socket> sink = Socket::CreateSocket (node, tid);
+  InetSocketAddress local = InetSocketAddress (addr, checkPort);
+  sink->Bind (local);
+  sink->SetSendCallback (MakeCallback (&RoutingExperiment::SendPacket, this));
 
   return sink;
 }
@@ -342,7 +369,6 @@ void RoutingExperiment::Run(int nSinks, double txp, std::string CSVfileName)
   m_protocolName = "protocol";
   const int nodesPerCluster = 3;
   const int maxClusters = 3;
-  NS_LOG_UNCOND ("adsfjkasvnaihi;rlfla;skdnkjsavjkdshgas;dlighdaslkvnk");
   Packet::EnablePrinting ();
   m_txp = txp;
   m_CSVfileName = CSVfileName;
@@ -557,8 +583,42 @@ void RoutingExperiment::Run(int nSinks, double txp, std::string CSVfileName)
   }
 
   //Set up latency logger
-  Ptr<Socket> sink = SetupPacketReceive (intoClusterHeadInterfaces[0][0].GetAddress (0), clusters[0].Get(0));
+  std::vector <Ptr<Socket>> sinks;
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[0][0].GetAddress(1) << " with node: " << std::to_string(clusters[0].Get(0)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[0][0].GetAddress(1), clusters[0].Get(0), 9) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][0].GetAddress(1), clusters[0].Get(0), 9) );
 
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[0][1].GetAddress(0) << " with node: " << std::to_string(clusters[0].Get(1)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[0][1].GetAddress(0), clusters[0].Get(1), 9) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][1].GetAddress(0), clusters[0].Get(1), 9) );
+
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[0][2].GetAddress(0) << " with node: " << std::to_string(clusters[0].Get(2)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[0][2].GetAddress(0), clusters[0].Get(2), 9) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][2].GetAddress(0), clusters[0].Get(2), 9) );
+
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][0].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(0)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][0].GetAddress(0), clusters[1].Get(0), 49153) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][0].GetAddress(0), clusters[1].Get(0), 49153) );
+
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][1].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(1)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][1].GetAddress(0), clusters[1].Get(1), 49153) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][1].GetAddress(0), clusters[1].Get(1), 49153) );
+
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][2].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(2)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][2].GetAddress(0), clusters[1].Get(2), 49153) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][2].GetAddress(0), clusters[1].Get(2), 495153) );
+
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][0].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(0)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][0].GetAddress(0), clusters[2].Get(0), 49153) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][0].GetAddress(0), clusters[2].Get(0), 49153) );
+
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][1].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(1)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][1].GetAddress(0), clusters[2].Get(1), 49153) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][1].GetAddress(0), clusters[2].Get(1), 49153) );
+
+  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][2].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(2)->GetId()));
+  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][2].GetAddress(0), clusters[2].Get(2), 49153) );
+  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][2].GetAddress(0), clusters[2].Get(2), 49153) );
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   
@@ -584,9 +644,12 @@ void RoutingExperiment::Run(int nSinks, double txp, std::string CSVfileName)
   CheckThroughput ();
 
   //Simulator::Stop (Seconds (TotalTime));
-  //Simulator::Stop (Seconds (30.0));
+  Ptr<FlowMonitor> flowMonitor;
+  FlowMonitorHelper flowHelper;
+  flowMonitor = flowHelper.InstallAll();
+  Simulator::Stop (Seconds (30.0));
   Simulator::Run ();
-
+  flowMonitor->SerializeToXmlFile("NameOfFile.xml", true, true);
   
 
   Simulator::Destroy ();
