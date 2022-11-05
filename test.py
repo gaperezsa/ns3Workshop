@@ -27,7 +27,7 @@ iterationNum = int(args.iterations)
 
 port = 5555
 simTime = 29 # seconds
-stepTime = 0.5  # seconds
+stepTime = 1.0  # seconds
 seed = 0
 simArgs = {"--simTime": simTime,
            "--testArg": 123}
@@ -88,13 +88,14 @@ finally:
  
     size = stepIdx
     #chunks = list(chunk_list(rewards, size))
+    print("REWARDS=",rewards)
     rewards = np.array(rewards)
     chunks = np.array_split(rewards, size)
     #chunks = chunks_func(rewards, size)
     averages = [sum(chunk) / len(chunk) for chunk in chunks]
 
-    plt.plot(averages)
+    plt.plot(rewards)
     plt.xlabel('Time')
-    plt.ylabel('% Received Packets / Sent Packets')
+    plt.ylabel('Average latency until current time')
     plt.show()
     print("Done")
