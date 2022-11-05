@@ -98,6 +98,13 @@ uint32_t global_PacketsSent;
 multimap<uint32_t, Time> SendingTimes;
 multimap<uint32_t, Time> ReceivingTimes;
 float distance_change = 1.5; 
+vector<double> send_times = { 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 10.0, 11.0,
+                              11.0, 12.0, 12.0, 13.0, 13.0, 14.0, 14.0,
+                              15.0, 15.0, 16.0, 16.0, 17.0, 17.0, 18.0,
+                              18.0, 19.0, 19.0, 20.0, 20.0, 21.0, 22.0,
+                              23.0, 24.0, 25.0};
+uint32_t ptr_send_times [3];
+vector <double> latency_values;
 
 class RoutingExperiment
 {
@@ -159,7 +166,7 @@ bool MyGetGameOver(void)
   static float stepCounter = 0.0;
   stepCounter += 1;
   global_PacketsSent = stepCounter*4;
-  if ( Simulator::Now().Compare(Time("30s")) >= 0) {
+  if ( Simulator::Now().Compare(Time("29s")) >= 0) {
       isGameOver = true;
   }
   NS_LOG_UNCOND ("MyGetGameOver: " << isGameOver);
@@ -189,10 +196,15 @@ Ptr<OpenGymDataContainer> MyGetObservation(void)
   return box;
 }
 
-
 float MyGetReward(void)
 {
-  return  ((float) global_PacketsReceived/(float) global_PacketsSent)*1000;
+  if(latency_values.empty()) return 0.0;
+  double sum = 0.0;
+  for(const auto &lat : latency_values){
+    sum += lat;
+  }
+  double mean = sum / (double) latency_values.size();
+  return  (float) mean;
 }
 
 bool MyExecuteActions(Ptr<OpenGymDataContainer> action)
@@ -243,7 +255,11 @@ PrintReceivedPacket (Ptr<Socket> socket, Ptr<Packet> packet, Address senderAddre
 void RoutingExperiment::ReceivePacket (Ptr<Socket> socket)
 { 
   ReceivingTimes.insert(pair<uint32_t,Time>(socket->GetNode()->GetId() , Simulator::Now ()));
-  NS_LOG_UNCOND ("node: "+ std::to_string(socket->GetNode()->GetId())+" received back a packet at "+std::to_string(Simulator::Now().GetSeconds())+ " seconds BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+  uint32_t nodeId = socket->GetNode()->GetId();
+  double currentLatency = Simulator::Now ().GetSeconds() - send_times[ptr_send_times[nodeId]];
+  ptr_send_times[nodeId] ++;
+  latency_values.push_back(currentLatency);
+  NS_LOG_UNCOND ("node: "+ std::to_string(socket->GetNode()->GetId())+" received back a packet at "+std::to_string(Simulator::Now().GetSeconds())+ " seconds " + std::to_string(currentLatency) + "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
 }
 
 void RoutingExperiment::SendPacket (Ptr<Socket> socket, uint32_t bytes)
@@ -264,6 +280,12 @@ RoutingExperiment::CheckThroughput ()
   for ( const auto &p : ReceivingTimes )
   {
     NS_LOG_UNCOND("ReceivingTimes: " << p.first << '\t' << p.second<<'\n');
+  }
+  
+  NS_LOG_UNCOND ("Current latencies logged \n");
+  for ( const auto &p : latency_values )
+  {
+    NS_LOG_UNCOND("Latency Value: " << p <<'\n');
   }
   // double kbs = (bytesTotal * 8.0) / 1000;
   // bytesTotal = 0;
@@ -315,12 +337,6 @@ int main (int argc, char *argv[])
   double txp = 7.5;
 
   experiment.Run (nSinks, txp, CSVfileName);
-
-  
-
-
-
-
 }
 
 
@@ -586,39 +602,39 @@ void RoutingExperiment::Run(int nSinks, double txp, std::string CSVfileName)
   std::vector <Ptr<Socket>> sinks;
   NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[0][0].GetAddress(1) << " with node: " << std::to_string(clusters[0].Get(0)->GetId()));
   sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[0][0].GetAddress(1), clusters[0].Get(0), 9) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][0].GetAddress(1), clusters[0].Get(0), 9) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][0].GetAddress(1), clusters[0].Get(0), 9) );
 
   NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[0][1].GetAddress(0) << " with node: " << std::to_string(clusters[0].Get(1)->GetId()));
   sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[0][1].GetAddress(0), clusters[0].Get(1), 9) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][1].GetAddress(0), clusters[0].Get(1), 9) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][1].GetAddress(0), clusters[0].Get(1), 9) );
 
   NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[0][2].GetAddress(0) << " with node: " << std::to_string(clusters[0].Get(2)->GetId()));
   sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[0][2].GetAddress(0), clusters[0].Get(2), 9) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][2].GetAddress(0), clusters[0].Get(2), 9) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[0][2].GetAddress(0), clusters[0].Get(2), 9) );
 
-  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][0].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(0)->GetId()));
-  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][0].GetAddress(0), clusters[1].Get(0), 49153) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][0].GetAddress(0), clusters[1].Get(0), 49153) );
+  // NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][0].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(0)->GetId()));
+  // sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][0].GetAddress(0), clusters[1].Get(0), 49153) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][0].GetAddress(0), clusters[1].Get(0), 49153) );
 
-  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][1].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(1)->GetId()));
-  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][1].GetAddress(0), clusters[1].Get(1), 49153) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][1].GetAddress(0), clusters[1].Get(1), 49153) );
+  // NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][1].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(1)->GetId()));
+  // sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][1].GetAddress(0), clusters[1].Get(1), 49153) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][1].GetAddress(0), clusters[1].Get(1), 49153) );
 
-  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][2].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(2)->GetId()));
-  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][2].GetAddress(0), clusters[1].Get(2), 49153) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][2].GetAddress(0), clusters[1].Get(2), 495153) );
+  // NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[1][2].GetAddress(0) << " with node: " << std::to_string(clusters[1].Get(2)->GetId()));
+  // sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[1][2].GetAddress(0), clusters[1].Get(2), 49153) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[1][2].GetAddress(0), clusters[1].Get(2), 495153) );
 
-  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][0].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(0)->GetId()));
-  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][0].GetAddress(0), clusters[2].Get(0), 49153) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][0].GetAddress(0), clusters[2].Get(0), 49153) );
+  // NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][0].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(0)->GetId()));
+  // sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][0].GetAddress(0), clusters[2].Get(0), 49153) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][0].GetAddress(0), clusters[2].Get(0), 49153) );
 
-  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][1].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(1)->GetId()));
-  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][1].GetAddress(0), clusters[2].Get(1), 49153) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][1].GetAddress(0), clusters[2].Get(1), 49153) );
+  // NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][1].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(1)->GetId()));
+  // sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][1].GetAddress(0), clusters[2].Get(1), 49153) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][1].GetAddress(0), clusters[2].Get(1), 49153) );
 
-  NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][2].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(2)->GetId()));
-  sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][2].GetAddress(0), clusters[2].Get(2), 49153) );
-  sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][2].GetAddress(0), clusters[2].Get(2), 49153) );
+  // NS_LOG_UNCOND ("setting up address: " << intoClusterHeadInterfaces[2][2].GetAddress(0) << " with node: " << std::to_string(clusters[2].Get(2)->GetId()));
+  // sinks.push_back( SetupPacketReceive(intoClusterHeadInterfaces[2][2].GetAddress(0), clusters[2].Get(2), 49153) );
+  // sinks.push_back( SetupPacketSend(intoClusterHeadInterfaces[2][2].GetAddress(0), clusters[2].Get(2), 49153) );
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   
